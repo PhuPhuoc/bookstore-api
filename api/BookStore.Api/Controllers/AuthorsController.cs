@@ -26,7 +26,7 @@ public class AuthorsController(ISender mediator, IMapper mapper) : ApiController
   }
 
   [HttpGet()]
-  public async Task<IActionResult> GetAll(Guid id)
+  public async Task<IActionResult> GetAll()
   {
     throw new NotImplementedException();
   }

@@ -1,6 +1,4 @@
 using FluentValidation;
-using Mapster;
-using MapsterMapper;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using BookStore.Application.Common.Behaviors;
@@ -20,10 +18,12 @@ public static class DependencyInjection
 
     services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
 
-    var config = TypeAdapterConfig.GlobalSettings;
-    config.Scan(typeof(DependencyInjection).Assembly);
-    services.AddSingleton(config);
-    services.AddScoped<IMapper, ServiceMapper>();
+
+    // ── Mapster config
+    // var config = TypeAdapterConfig.GlobalSettings;
+    // config.Scan(typeof(DependencyInjection).Assembly);
+    // services.AddSingleton(config);
+    // services.AddScoped<IMapper, ServiceMapper>();
 
     return services;
   }

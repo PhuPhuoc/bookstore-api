@@ -1,9 +1,12 @@
 using Serilog;
 using BookStore.Infrastructure.Persistence;
 using BookStore.Application;
+using BookStore.Infrastructure.Caching;
+using BookStore.Api.Middleware;
 using Mapster;
 using System.Reflection;
 using MapsterMapper;
+
 
 // ── 1. Bootstrap logger (dùng trước khi builder khởi động xong)
 Log.Logger = new LoggerConfiguration()
@@ -24,7 +27,6 @@ try
     // ── Mapster config
     var mappingConfig = TypeAdapterConfig.GlobalSettings;
     mappingConfig.Scan(Assembly.GetExecutingAssembly());
-
     builder.Services.AddSingleton(mappingConfig);
     builder.Services.AddScoped<IMapper, ServiceMapper>();
 
@@ -32,6 +34,7 @@ try
     builder.Services.AddControllers();
     builder.Services.AddApplication();
     builder.Services.AddPersistence(builder.Configuration);
+    builder.Services.AddCaching(builder.Configuration);
   }
 
   var app = builder.Build();
@@ -41,8 +44,8 @@ try
       app.UseSwagger().UseSwaggerUI();
     }
 
-    // ── 3. Log mọi HTTP request (method, path, status, duration)
     app.UseSerilogRequestLogging();
+    app.UseMiddleware<ExceptionHandlingMiddleware>();
 
     app.UseHttpsRedirection();
     app.MapControllers();

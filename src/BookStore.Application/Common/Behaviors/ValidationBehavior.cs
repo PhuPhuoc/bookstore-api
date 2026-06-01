@@ -1,3 +1,4 @@
+using System.Reflection;
 using ErrorOr;
 using FluentValidation;
 using MediatR;
@@ -33,6 +34,10 @@ public class ValidationBehavior<TRequest, TResponse>
         .Select(e => Error.Validation(e.PropertyName, e.ErrorMessage))
         .ToList();
 
-    return (dynamic)errors;
+    var response = (TResponse?)typeof(TResponse)
+        .GetMethod("From", BindingFlags.Static | BindingFlags.Public)
+        ?.Invoke(null, [errors]);
+
+    return response;
   }
 }
