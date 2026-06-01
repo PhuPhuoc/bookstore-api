@@ -103,6 +103,8 @@ ref:
 # All versions are pinned to be compatible with net8.0.
 .PHONY: add-packages
 add-packages:
+	@echo "Installing Domain packages..."
+	dotnet add src/$(PREFIX).Domain/$(PREFIX).Domain.csproj package ErrorOr
 	@echo "Installing Application packages..."
 	dotnet add src/$(PREFIX).Application/$(PREFIX).Application.csproj package MediatR
 	dotnet add src/$(PREFIX).Application/$(PREFIX).Application.csproj package FluentValidation.DependencyInjectionExtensions
@@ -123,6 +125,7 @@ add-packages:
 	dotnet add api/$(PREFIX).Api/$(PREFIX).Api.csproj package Serilog.AspNetCore --version $(SERILOG_ASPNET_VERSION)
 	dotnet add api/$(PREFIX).Api/$(PREFIX).Api.csproj package Serilog.Sinks.Console --version $(SERILOG_CONSOLE_VERSION)
 	dotnet add api/$(PREFIX).Api/$(PREFIX).Api.csproj package Microsoft.AspNetCore.Authentication.JwtBearer --version $(JWT_VERSION)
+	dotnet add api/$(PREFIX).Api/$(PREFIX).Api.csproj package Microsoft.EntityFrameworkCore.Design --version $(EF_VERSION)
 	@echo "All packages installed"
 
 # Full setup from scratch
@@ -209,8 +212,9 @@ remove:
 
 .PHONY: migration
 migration:
-	@if [ "$(name)" = "" ]; then \
-	    echo "Error: missing migration name. Example: make migration name=InitialCreate"; exit 1; fi
+ifeq ($(strip $(name)),)
+	$(error missing migration name. Example: make migration name=InitialCreate)
+endif
 	dotnet ef migrations add $(name) \
 	    --project $(PERSIST_PROJ) \
 	    --startup-project $(API_PROJ)

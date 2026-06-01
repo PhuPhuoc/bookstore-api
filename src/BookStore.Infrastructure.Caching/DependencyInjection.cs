@@ -1,0 +1,1 @@
+namespace BookStore.Infrastructure.Caching;
