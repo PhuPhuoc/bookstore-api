@@ -1,316 +1,201 @@
-# BookStore
+# BookStore API
 
-A self-learning project for **ASP.NET 8** built with **Clean Architecture** and **Domain-Driven Design (DDD)**.
-The goal is to practice patterns and packages commonly used in real-world enterprise .NET projects.
+> A hands-on **Clean Architecture + DDD** learning project built with **ASP.NET Core 8**.  
+> Focuses on implementing real-world enterprise patterns in a structured, layered .NET solution.
 
-**Tech stack:** ASP.NET 8 · EF Core 9 (PostgreSQL) · Redis · MediatR · FluentValidation · ErrorOr · Mapster · Serilog · JWT
-
----
-
-## Project Structure
-
-```
-BookStore.sln
-│
-├── api/
-│   └── BookStore.Api/                                <- Presentation layer (ASP.NET Web API)
-│       ├── Controllers/
-│       │   ├── ApiController.cs                      <- Base controller: unwraps ErrorOr<T> into HTTP responses
-│       │   ├── BooksController.cs
-│       │   └── AuthorsController.cs
-│       ├── Middleware/
-│       │   └── ErrorHandlingMiddleware.cs            <- Global unhandled exception handler
-│       └── Program.cs                                <- DI wiring, middleware pipeline
-│
-├── src/
-│   ├── BookStore.Contracts/                          <- HTTP layer DTOs (no business logic, no dependencies)
-│   │   ├── Books/
-│   │   │   ├── CreateBookRequest.cs
-│   │   │   ├── UpdateBookRequest.cs
-│   │   │   └── BookResponse.cs
-│   │   └── Authors/
-│   │       ├── CreateAuthorRequest.cs
-│   │       └── AuthorResponse.cs
-│   │
-│   ├── BookStore.Domain/                             <- Core business logic (zero external dependencies)
-│   │   ├── Common/
-│   │   │   ├── Entity.cs                             <- Base class: typed Id, domain event collection
-│   │   │   └── AggregateRoot.cs                      <- Marker class; all state changes go through the root
-│   │   ├── Books/
-│   │   │   ├── Book.cs                               <- Aggregate Root
-│   │   │   ├── BookId.cs                             <- Value Object (strongly-typed Id wrapping Guid)
-│   │   │   └── BookErrors.cs                         <- Domain-level errors for use with ErrorOr
-│   │   ├── Authors/
-│   │   │   ├── Author.cs
-│   │   │   ├── AuthorId.cs
-│   │   │   └── AuthorErrors.cs
-│   │   └── Repositories/
-│   │       ├── IBookRepository.cs                    <- Interface lives in Domain; implementation in Infrastructure
-│   │       └── IAuthorRepository.cs
-│   │
-│   ├── BookStore.Application/                        <- Use cases: CQRS handlers, validation, mapping contracts
-│   │   ├── Common/
-│   │   │   ├── Behaviors/
-│   │   │   │   └── ValidationBehavior.cs             <- MediatR pipeline: runs FluentValidation before every handler
-│   │   │   └── Interfaces/
-│   │   │       └── ICacheService.cs                  <- Cache abstraction defined here (not in Infrastructure)
-│   │   ├── Books/
-│   │   │   ├── Commands/
-│   │   │   │   ├── CreateBook/
-│   │   │   │   │   ├── CreateBookCommand.cs
-│   │   │   │   │   ├── CreateBookCommandHandler.cs
-│   │   │   │   │   └── CreateBookCommandValidator.cs
-│   │   │   │   ├── UpdateBook/
-│   │   │   │   │   ├── UpdateBookCommand.cs
-│   │   │   │   │   ├── UpdateBookCommandHandler.cs
-│   │   │   │   │   └── UpdateBookCommandValidator.cs
-│   │   │   │   └── DeleteBook/
-│   │   │   │       ├── DeleteBookCommand.cs
-│   │   │   │       └── DeleteBookCommandHandler.cs
-│   │   │   └── Queries/
-│   │   │       ├── GetBook/
-│   │   │       │   ├── GetBookQuery.cs
-│   │   │       │   └── GetBookQueryHandler.cs        <- may read from cache first, then DB
-│   │   │       └── ListBooks/
-│   │   │           ├── ListBooksQuery.cs
-│   │   │           └── ListBooksQueryHandler.cs
-│   │   └── DependencyInjection.cs
-│   │
-│   ├── BookStore.Infrastructure.Persistence/         <- EF Core (PostgreSQL write/read DB)
-│   │   ├── AppDbContext.cs
-│   │   ├── Configurations/
-│   │   │   ├── BookConfiguration.cs                  <- EF Fluent API (keeps Domain free of data annotations)
-│   │   │   └── AuthorConfiguration.cs
-│   │   ├── Migrations/
-│   │   ├── Repositories/
-│   │   │   ├── BookRepository.cs                     <- Implements IBookRepository
-│   │   │   └── AuthorRepository.cs
-│   │   └── DependencyInjection.cs
-│   │
-│   └── BookStore.Infrastructure.Caching/             <- Redis cache
-│       ├── RedisCacheService.cs                      <- Implements ICacheService from Application
-│       ├── CacheKeys.cs                              <- Static constants for all cache key names
-│       └── DependencyInjection.cs
-│
-└── Makefile
-```
+**Stack:** ASP.NET 8 · EF Core 9 (PostgreSQL) · Redis · MediatR · FluentValidation · ErrorOr · Mapster · Serilog
 
 ---
 
-## Dependency Graph
+## 📐 Patterns & Implementation
+
+### 🧱 Clean Architecture
+
+6 projects, dependency chỉ đi theo một hướng — từ ngoài vào trong:
 
 ```
-┌─────────────┐
-│  Contracts  │  plain POCOs, no references
-└──────┬──────┘
-       │
-┌──────▼────────────────────────────────────────────────────┐
-│                         Api                                │
-│  receives HTTP Request -> maps to Command/Query            │
-│  dispatches via MediatR -> maps result to HTTP Response    │
-└──────┬───────────────────┬──────────────────┬─────────────┘
-       │                   │                  │
-┌──────▼──────┐  ┌─────────▼──────────┐  ┌───▼──────────────────┐
-│ Application │  │ Infra.Persistence  │  │  Infra.Caching       │
-│  Commands   │◄─│  BookRepository    │  │  RedisCacheService   │
-│  Queries    │  │  AppDbContext      │  │  (implements         │
-│  Validators │◄─│  (implements       │  │   ICacheService)     │
-│  ICacheService│  IBookRepository)  │  └──────────────────────┘
-└──────┬──────┘  └────────────────────┘
-       │
-┌──────▼──────┐
-│   Domain    │  zero external dependencies
-│  Aggregates │
-│  Errors     │
-│  Interfaces │
-└─────────────┘
+Api → Application → Domain
+Api → Infrastructure.* → Application → Domain
+Contracts → Api (Contracts là POCO, kéo vào từ Api)
 ```
 
-**Dependency rule:** arrows point inward only. Outer layers know inner layers; inner layers never reference outer layers.
+**Nguyên tắc:** Domain không biết gì về Infrastructure, Application không biết gì về EF Core hay Redis. Muốn đổi PostgreSQL sang SQL Server hay Redis sang Memcached, chỉ cần sửa Infrastructure, không động đến business logic.
 
-Key point: `ICacheService` is defined in **Application**, not in Infrastructure. This means Application handlers can use caching without importing any Redis package — Infrastructure.Caching just provides the concrete implementation.
+Mỗi layer có một trách nhiệm duy nhất:
+
+| Layer | Trách nhiệm | Biết gì? |
+|---|---|---|
+| **Domain** | Entities, Value Objects, Domain Errors, Repository interfaces | Không biết gì — zero dependency |
+| **Application** | Use cases (Commands/Queries), Handlers, Validators, Pipeline behaviors | Chỉ biết Domain |
+| **Infrastructure.Persistence** | EF Core DbContext, Repository implementations, Migrations | Biết Application + Domain |
+| **Infrastructure.Caching** | Redis client (shell) | Biết Application + Domain |
+| **Api** | Controllers, Middleware, Mapster mapping, DI wiring | Biết tất cả layers bên dưới + Contracts |
+| **Contracts** | Request/Response DTOs | Không biết gì — plain POCOs |
+
+**Bằng chứng trong code:**
+- `Author.cs` trong Domain không có `[Table]`, `[Column]` — cấu hình EF nằm hết trong `AuthorConfiguration.cs` ở Persistence
+- `IAuthorRepository` được định nghĩa ở Domain, implement ở Persistence — Domain không cần reference EF Core
+- `IUnitOfWork` interface ở Application, implementation (`UnitOfWork`) ở Persistence
 
 ---
 
-## Patterns & Why
+### 🧩 Domain-Driven Design (DDD)
 
-### Clean Architecture
-Business logic (Domain + Application) is completely isolated from infrastructure (EF Core, Redis) and the HTTP layer (API). You can swap PostgreSQL for another DB or Redis for Memcached without touching Domain or Application.
+| Concept | Implementation | Ý nghĩa |
+|---|---|---|
+| **Entity** | `Entity<TId>` — base class chứa `Id` và domain event collection | Mọi entity đều có identity phân biệt qua Id |
+| **Aggregate Root** | `AggregateRoot<TId>` — kế thừa `Entity<TId>`, là marker class | Chỉ Aggregate Root mới được repository fetch/save. Đảm bảo consistency boundary |
+| **Value Object** | `AuthorId(Guid Value)` — `record` type | Strongly-typed Id: `AuthorId` ≠ `BookId` ≠ `Guid`. Compiler bắt lỗi ngay từ lúc gõ |
+| **Domain Errors** | `AuthorErrors.NotFound` — static class chứa `Error` objects | Lỗi mang ý nghĩa business, không phải exception kỹ thuật |
+| **Repository Interface** | `IAuthorRepository` trong Domain | Interface ở Domain, implementation ở Infrastructure — đảo ngược dependency |
 
-### Domain-Driven Design (DDD)
+> **Điểm đáng chú ý:** `Author` dùng **factory method** `Author.Create(...)` thay vì `new Author(...)` constructor public. Constructor private `Author() { }` chỉ dành cho EF Core. Đây là pattern phổ biến trong DDD để kiểm soát cách entity được tạo.
 
-| Concept | Implementation |
+---
+
+### ⚡ CQRS với MediatR
+
+Mỗi use case là một Command (ghi) hoặc Query (đọc) riêng biệt, mỗi cái có Handler riêng. Không có service class "phình to" làm đủ thứ.
+
+**Phân loại bằng marker interfaces:**
+- `ICommand<TResponse> : IRequest<ErrorOr<TResponse>>` — command (ghi, cần SaveChanges)
+- `IQuery<TResponse> : IRequest<ErrorOr<TResponse>>` — query (đọc, không cần SaveChanges)
+
+**Pipeline behaviors xử lý xuyên suốt mọi request:**
+
+| Behavior | Phạm vi | Việc làm |
+|---|---|---|
+| **ValidationBehavior** | Mọi request | Chạy FluentValidation trước handler. Lỗi → 422, không chạy handler |
+| **UnitOfWorkBehavior** | Chỉ `ICommand<T>` | Tự động `SaveChangesAsync` nếu handler thành công. Lỗi → không commit |
+
+> **Ý nghĩa:** Controller không bao giờ gọi `SaveChanges`. Handler không bao giờ gọi `SaveChanges`. Việc commit DB hoàn toàn do pipeline behavior quản lý — đảm bảo tính atomic của mỗi command.
+
+---
+
+### 🎯 ErrorOr — Result Pattern
+
+Thay vì throw exception cho các lỗi nghiệp vụ (not found, conflict, validation), handler return `ErrorOr<T>`. Base `ApiController` dùng `result.Match(success → ..., errors → Problem(errors))` để map Error type sang HTTP status:
+
+| Domain Error | HTTP Status |
 |---|---|
-| **Aggregate Root** | `Book`, `Author` — the single entry point for all state mutations |
-| **Value Object** | `BookId(Guid Value)` — strongly-typed Id; prevents accidentally passing an `AuthorId` where a `BookId` is expected |
-| **Domain Errors** | `BookErrors.NotFound`, `BookErrors.DuplicateIsbn` — errors carry business meaning |
-| **Repository Interface** | Defined in Domain (`IBookRepository`), implemented in Infrastructure.Persistence (`BookRepository`) |
+| `ErrorType.NotFound` | 404 |
+| `ErrorType.Conflict` | 409 |
+| `ErrorType.Validation` | 422 |
+| khác | 500 |
 
-### CQRS with MediatR
-Each use case (create, update, delete, get, list) is a separate Command or Query class with its own Handler. No fat service classes.
-
-```
-POST /books
-  │
-  ▼
-BooksController.Create(CreateBookRequest)
-  │  map via Mapster
-  ▼
-CreateBookCommand ──► MediatR pipeline
-                           │
-                     ValidationBehavior  (FluentValidation auto-runs here)
-                           │
-                     CreateBookCommandHandler
-                           │
-                     IBookRepository.AddAsync(book)
-                           │
-                     return ErrorOr<Book>
-  │
-  ▼
-result.Match(
-  book   => CreatedAtAction(nameof(Get), new { id = book.Id }, book.Adapt<BookResponse>()),
-  errors => Problem(errors)
-)
-```
-
-### ErrorOr — Result Pattern
-Handlers return `ErrorOr<T>` instead of throwing exceptions. The base `ApiController` has a `Match` helper that maps `Error` types to the correct HTTP status codes (`404`, `409`, `422`, etc.). Exceptions are reserved for truly unexpected failures only.
-
-```csharp
-// In handler
-public async Task<ErrorOr<Book>> Handle(CreateBookCommand cmd, CancellationToken ct)
-{
-    if (await _repo.ExistsByIsbn(cmd.Isbn, ct))
-        return BookErrors.DuplicateIsbn;          // returns 409
-
-    var book = Book.Create(cmd.Title, cmd.Isbn, cmd.AuthorId);
-    await _repo.AddAsync(book, ct);
-    return book;
-}
-
-// In base ApiController
-protected IActionResult Problem(List<Error> errors)
-{
-    var first = errors.First();
-    var statusCode = first.Type switch
-    {
-        ErrorType.NotFound   => StatusCodes.Status404NotFound,
-        ErrorType.Conflict   => StatusCodes.Status409Conflict,
-        ErrorType.Validation => StatusCodes.Status422UnprocessableEntity,
-        _                    => StatusCodes.Status500InternalServerError,
-    };
-    return Problem(statusCode: statusCode, detail: first.Description);
-}
-```
-
-### FluentValidation + MediatR Pipeline Behavior
-`ValidationBehavior<TRequest, TResponse>` is registered as a `IPipelineBehavior`. It runs all validators for the incoming Command/Query automatically before the handler executes. Controllers never call `.Validate()` manually.
-
-```csharp
-// CreateBookCommandValidator.cs
-public class CreateBookCommandValidator : AbstractValidator<CreateBookCommand>
-{
-    public CreateBookCommandValidator()
-    {
-        RuleFor(x => x.Title).NotEmpty().MaximumLength(200);
-        RuleFor(x => x.Isbn).NotEmpty().Length(13);
-        RuleFor(x => x.AuthorId).NotEmpty();
-    }
-}
-```
-
-### Mapster
-Maps between layers (e.g. `Book` → `BookResponse`, `CreateBookRequest` → `CreateBookCommand`). Configured centrally in `DependencyInjection.cs` using `TypeAdapterConfig`. No scattered `new BookResponse { ... }` assignments.
-
-### EF Core + Fluent API
-Each aggregate has its own `IEntityTypeConfiguration<T>` file. Domain entities have no EF attributes (`[Column]`, `[MaxLength]`, etc.) — configuration is 100% in Infrastructure.Persistence.
-
-### Redis Caching
-`ICacheService` (defined in Application) provides a simple `GetAsync<T>` / `SetAsync<T>` / `RemoveAsync` contract. `RedisCacheService` (in Infrastructure.Caching) implements it using `StackExchange.Redis`. Query handlers that need caching inject `ICacheService` — they never reference Redis directly.
+Exception chỉ dành cho lỗi thực sự bất ngờ (null reference, DB timeout, ...). Những exception này được `ExceptionHandlingMiddleware` bắt, log qua Serilog, và trả về JSON 500.
 
 ---
 
-## Package Reference
+### 🔧 Chi tiết kỹ thuật
+
+**FluentValidation + Reflection-based Error Construction**  
+`ValidationBehavior` dùng `IValidator<TRequest>` (nullable — nếu không có validator thì bỏ qua). Khi validation fail, errors được gom thành `List<Error>` và dùng reflection để gọi `ErrorOr<T>.From(List<Error>)` — tránh unsafe `(dynamic)` cast.
+
+**Mapster**  
+Scan toàn bộ Api assembly để tìm các class implement `IRegister` (vd: `AuthorMappingConfig`). Controller chỉ cần gọi `_mapper.Map<Dest>(src)` — mapping tập trung, không có `new Response { ... }` rải rác.
+
+**EF Core Fluent API**  
+`AuthorConfiguration.cs` chứa toàn bộ cấu hình: table name, column name, type conversion (`AuthorId → Guid`). Domain entity `Author.cs` không hề có data annotation — sạch sẽ, không phụ thuộc ORM.
+
+---
+
+## 📦 Package Reference
 
 | Project | Package | Version | Purpose |
 |---|---|---|---|
-| Application | `MediatR` | latest | CQRS dispatcher |
-| Application | `FluentValidation.DependencyInjectionExtensions` | latest | Auto-register validators + pipeline |
-| Application | `ErrorOr` | latest | Result pattern (replaces exceptions for domain errors) |
-| Application | `Mapster` + `Mapster.DependencyInjection` | latest | Object mapping between layers |
-| Infrastructure.Persistence | `Microsoft.EntityFrameworkCore` | 9.x | ORM core |
-| Infrastructure.Persistence | `Npgsql.EntityFrameworkCore.PostgreSQL` | 9.x | PostgreSQL provider for EF Core |
-| Infrastructure.Persistence | `Microsoft.EntityFrameworkCore.Tools` | 9.x | EF CLI (`dotnet ef migrations`) |
-| Infrastructure.Persistence | `Microsoft.Extensions.Configuration.Abstractions` | latest | Read connection strings |
-| Infrastructure.Caching | `StackExchange.Redis` | 2.x | Redis client |
-| Infrastructure.Caching | `Microsoft.Extensions.Caching.StackExchangeRedis` | latest | IDistributedCache integration |
-| Infrastructure.Caching | `Microsoft.Extensions.Configuration.Abstractions` | latest | Read Redis config |
-| Api | `Swashbuckle.AspNetCore` | latest | Swagger / OpenAPI |
-| Api | `Serilog.AspNetCore` | 9.x | Structured request logging |
-| Api | `Serilog.Sinks.Console` | 6.x | Console sink (independent versioning from Serilog.AspNetCore) |
-| Api | `Microsoft.AspNetCore.Authentication.JwtBearer` | 8.x | JWT auth (must match target framework major: net8.0 → 8.x) |
-
-> **Version pinning notes:**
-> - `EF Core` and `Npgsql.EF` → `9.x` (compatible with net8.0; `10.x` requires net10.0)
-> - `Serilog.Sinks.Console` → `6.x` (has its own release cycle; latest is 6.1.1)
-> - `JwtBearer` → `8.x` for net8.0 projects (version must match the TFM major version)
+| **Domain** | `ErrorOr` | 2.x | Result pattern |
+| **Application** | `MediatR` | 14.x | CQRS dispatcher |
+| | `FluentValidation.DependencyInjectionExtensions` | 12.x | Auto-register validators |
+| | `Mapster` + `Mapster.DependencyInjection` | 10.x | Object mapping |
+| **Infrastructure.Persistence** | `Microsoft.EntityFrameworkCore` | 9.x | ORM |
+| | `Npgsql.EntityFrameworkCore.PostgreSQL` | 9.x | PostgreSQL provider |
+| | `Microsoft.EntityFrameworkCore.Tools` | 9.x | EF CLI |
+| | `Microsoft.Extensions.Configuration.Abstractions` | 10.x | Config binding |
+| **Infrastructure.Caching** | `StackExchange.Redis` | 2.x | Redis client |
+| | `Microsoft.Extensions.Caching.StackExchangeRedis` | 10.x | Distributed cache |
+| | `Microsoft.Extensions.Configuration.Abstractions` | 10.x | Config binding |
+| **Api** | `Swashbuckle.AspNetCore` | 10.x | Swagger |
+| | `Serilog.AspNetCore` | 9.x | Request logging |
+| | `Serilog.Sinks.Console` | 6.x | Console output |
+| | `Microsoft.AspNetCore.Authentication.JwtBearer` | 8.x | JWT (chưa wire) |
+| | `Microsoft.EntityFrameworkCore.Design` | 9.x | EF CLI design-time |
 
 ---
 
-## Getting Started
+## 🛠 Makefile
 
-```bash
-# 1. Scaffold the full solution (run once in an empty folder)
-make init
-
-# 2. Configure connection strings in api/BookStore.Api/appsettings.json
-{
-  "ConnectionStrings": {
-    "DefaultConnection": "Host=localhost;Port=5432;Database=bookstore;Username=postgres;Password=yourpassword",
-    "Redis": "localhost:6379"
-  }
-}
-
-# 3. Create the database schema
-make migration name=InitialCreate
-make db-update
-
-# 4. Run
-make run
-
-# Hot reload during development
-make watch
+### Scaffolding (`make init`)
+Chạy lần đầu để tạo toàn bộ solution từ zero:
 ```
-
-All available commands:
-
-```bash
-make help
+new-sln → new-projects → sln-add → ref → add-packages → restore
 ```
+Mỗi bước đều có thể chạy riêng lẻ nếu cần custom. `ref` tự động thiết lập project references theo đúng graph Clean Architecture.
 
----
-
-## Adding / Removing Packages
-
+### Package management (`make add` / `make remove`)
 ```bash
-make add pkg=Newtonsoft.Json to=Application
-make add pkg=SomePackage to=Infrastructure.Persistence ver=9.0.5
-make add pkg=Scalar.AspNetCore to=Api
-
+make add pkg=Newtonsoft.Json to=Application ver=13.0.3
 make remove pkg=Newtonsoft.Json to=Application
 ```
+Tự động resolve đường dẫn `.csproj` theo tên layer. Hỗ trợ version pinning.
 
-Valid values for `to`:
-`Api` | `Contracts` | `Application` | `Domain` | `Infrastructure.Persistence` | `Infrastructure.Caching`
+### Database migrations (`make migration` / `make db-update`)
+Tạo migration, update database, rollback, drop — target đúng project Infrastructure.Persistence, startup-project trỏ về Api.
+
+### Run / Watch
+```bash
+make run     # dotnet run với https profile
+make watch   # hot reload
+```
 
 ---
 
-## Key Design Decisions
+## 🚀 Getting Started
 
-| Decision | Reason |
+```bash
+# Prerequisites: Docker, .NET 8 SDK
+
+# 1. Start PostgreSQL + Redis
+docker compose up -d
+
+# 2. Apply migrations
+dotnet ef database update \
+    --project src/BookStore.Infrastructure.Persistence \
+    --startup-project api/BookStore.Api
+
+# 3. Run
+dotnet run --project api/BookStore.Api
+# → Swagger: https://localhost:44399/swagger
+
+# Hoặc dùng Makefile:
+make run
+```
+
+---
+
+## 📋 API Status
+
+| Method | Route | Status |
+|---|---|---|
+| `POST` | `/api/authors` | ✅ Implemented |
+| `GET` | `/api/authors` | ⏳ Planned |
+| `GET` | `/api/authors/{id}` | ⏳ Planned |
+| `PATCH` | `/api/authors/{id}` | ⏳ Planned |
+| `DELETE` | `/api/authors/{id}` | ⏳ Planned |
+
+Hiện tại chỉ có **Author** aggregate. **Book** entity và các endpoint liên quan đang trong kế hoạch.
+
+---
+
+## 💡 Key Design Decisions
+
+| Decision | Rationale |
 |---|---|
-| `ICacheService` defined in Application, not Infrastructure | Application handlers can depend on the cache abstraction without importing Redis. Follows Dependency Inversion. |
-| Two separate Infrastructure projects | `Infrastructure.Persistence` and `Infrastructure.Caching` can evolve independently. Swap Redis for Memcached or switch DB provider without touching the other. |
-| `BookId` as a Value Object | Prevents passing wrong Id types at compile time. `Book.Create()` takes a `BookId`, never a raw `Guid`. |
-| No `Infrastructure` catch-all project | Keeping persistence and caching separate makes ownership clear and avoids one oversized `DependencyInjection.cs`. |
-| EF Fluent API in Configurations/ | Domain entities stay free of ORM attributes. `Book.cs` knows nothing about databases. |
+| **ICommand / IQuery markers** | Cho phép pipeline behavior phân biệt command (cần SaveChanges) với query (read-only) ngay tại generic constraint — không cần runtime check |
+| **UnitOfWorkBehavior qua MediatR pipeline** | Controller và handler không bao giờ gọi `SaveChanges` trực tiếp. Transaction boundary là toàn bộ command — một commit hoặc không gì cả |
+| **IUnitOfWork ở Application layer** | Application định nghĩa contract, Persistence implement. Đúng Dependency Inversion Principle |
+| **Separate Infrastructure projects** | `Persistence` và `Caching` độc lập, không chung một project "rác". Swap cái nào cũng không ảnh hưởng cái kia |
+| **Fluent API over data annotations** | Domain entities thuần POCO — không biết EF Core là gì |
+| **AuthorId là value object** | Compile-time type safety: `AuthorId` ≠ `BookId` ≠ plain `Guid` |
+| **Reflection-based error construction** | An toàn hơn `(dynamic)` cast — gọi đúng `ErrorOr<T>.From()` với generic type chính xác |
+| **Makefile với scaffolding** | Tự động hoá tạo project structure đúng Clean Architecture ngay từ đầu — không lo sai dependency direction |
