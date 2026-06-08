@@ -5,17 +5,14 @@ using MediatR;
 
 namespace BookStore.Application.Common.Behaviors;
 
-public class ValidationBehavior<TRequest, TResponse>
+public class ValidationBehavior<TRequest, TResponse>(
+  IValidator<TRequest>? validator
+    )
     : IPipelineBehavior<TRequest, TResponse>
     where TRequest : IRequest<TResponse>
     where TResponse : IErrorOr
 {
-  private readonly IValidator<TRequest>? _validator;
-
-  public ValidationBehavior(IValidator<TRequest>? validator = null)
-  {
-    _validator = validator;
-  }
+  private readonly IValidator<TRequest>? _validator = validator;
 
   public async Task<TResponse> Handle(
       TRequest request,
@@ -23,12 +20,12 @@ public class ValidationBehavior<TRequest, TResponse>
       CancellationToken ct)
   {
     if (_validator is null)
-      return await next();
+      return await next(ct);
 
     var result = await _validator.ValidateAsync(request, ct);
 
     if (result.IsValid)
-      return await next();
+      return await next(ct);
 
     var errors = result.Errors
         .Select(e => Error.Validation(e.PropertyName, e.ErrorMessage))

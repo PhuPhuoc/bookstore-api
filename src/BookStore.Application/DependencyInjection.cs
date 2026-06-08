@@ -1,7 +1,7 @@
 using FluentValidation;
-using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using BookStore.Application.Common.Behaviors;
+using System.Reflection;
 
 namespace BookStore.Application;
 
@@ -10,21 +10,18 @@ public static class DependencyInjection
   public static IServiceCollection AddApplication(this IServiceCollection services)
   {
     services.AddMediatR(cfg =>
-        cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly));
-
-    services.AddScoped(
-        typeof(IPipelineBehavior<,>),
-        typeof(ValidationBehavior<,>));
+      {
+        // 1.register Handlers from Assembly
+        // cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly);
+        cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly());
+        // 2. register all open behaviors
+        cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
+        // unit of work
+        cfg.AddOpenBehavior(typeof(UnitOfWorkBehavior<,>));
+      }
+    );
 
     services.AddValidatorsFromAssembly(typeof(DependencyInjection).Assembly);
-
-
-    // ── Mapster config
-    // var config = TypeAdapterConfig.GlobalSettings;
-    // config.Scan(typeof(DependencyInjection).Assembly);
-    // services.AddSingleton(config);
-    // services.AddScoped<IMapper, ServiceMapper>();
-
     return services;
   }
 }

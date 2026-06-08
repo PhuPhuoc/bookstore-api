@@ -13,13 +13,11 @@ public class AuthorRepository(
   public async Task AddAsync(Author author, CancellationToken ct)
   {
     await _context.Authors.AddAsync(author, ct);
-    await _context.SaveChangesAsync(ct);
   }
 
   public async Task DeleteAsync(Author author, CancellationToken ct)
   {
     _context.Authors.Remove(author);
-    await _context.SaveChangesAsync(ct);
   }
 
   public async Task<Author?> GetByIdAsync(AuthorId id, CancellationToken ct)
@@ -36,6 +34,5 @@ public class AuthorRepository(
   public async Task UpdateAsync(Author author, CancellationToken ct)
   {
     _context.Authors.Update(author);
-    await _context.SaveChangesAsync(ct);
   }
 }

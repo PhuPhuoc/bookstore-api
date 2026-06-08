@@ -8,7 +8,7 @@ using System.Reflection;
 using MapsterMapper;
 
 
-// ── 1. Bootstrap logger (dùng trước khi builder khởi động xong)
+// ── 1. Bootstrap logger
 Log.Logger = new LoggerConfiguration()
     .WriteTo.Console()
     .CreateBootstrapLogger();
@@ -19,7 +19,7 @@ try
 
   var builder = WebApplication.CreateBuilder(args);
   {
-    // ── 2. Đọc config từ appsettings.json rồi replace bootstrap logger
+    // ── 2. read config from appsettings.json then replace bootstrap logger
     builder.Host.UseSerilog((context, services, config) =>
         config.ReadFrom.Configuration(context.Configuration)
               .ReadFrom.Services(services));
@@ -44,8 +44,8 @@ try
       app.UseSwagger().UseSwaggerUI();
     }
 
-    app.UseSerilogRequestLogging();
     app.UseMiddleware<ExceptionHandlingMiddleware>();
+    app.UseSerilogRequestLogging();
 
     app.UseHttpsRedirection();
     app.MapControllers();

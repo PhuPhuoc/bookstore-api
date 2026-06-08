@@ -1,10 +1,11 @@
+
 using BookStore.Application.Authors.Commands.CreateAuthor;
 using BookStore.Contracts.Authors;
 using MediatR;
 using MapsterMapper;
 using Microsoft.AspNetCore.Mvc;
 
-namespace BookStore.Api.Controllers;
+namespace BookStore.Api.Controllers.Authors;
 
 public class AuthorsController(ISender mediator, IMapper mapper) : ApiController(mediator)
 {
