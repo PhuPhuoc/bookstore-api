@@ -11,92 +11,92 @@
 
 ### 🧱 Clean Architecture
 
-6 projects, dependency chỉ đi theo một hướng — từ ngoài vào trong:
+6 projects, dependencies flow inward only:
 
 ```
 Api → Application → Domain
 Api → Infrastructure.* → Application → Domain
-Contracts → Api (Contracts là POCO, kéo vào từ Api)
+Contracts → Api (Contracts are plain POCOs pulled in by Api)
 ```
 
-**Nguyên tắc:** Domain không biết gì về Infrastructure, Application không biết gì về EF Core hay Redis. Muốn đổi PostgreSQL sang SQL Server hay Redis sang Memcached, chỉ cần sửa Infrastructure, không động đến business logic.
+**Principle:** Domain knows nothing about Infrastructure. Application knows nothing about EF Core or Redis. Swap PostgreSQL for SQL Server or Redis for Memcached by touching only Infrastructure — business logic stays untouched.
 
-Mỗi layer có một trách nhiệm duy nhất:
+Each layer has a single responsibility:
 
-| Layer | Trách nhiệm | Biết gì? |
+| Layer | Responsibility | Knows About |
 |---|---|---|
-| **Domain** | Entities, Value Objects, Domain Errors, Repository interfaces | Không biết gì — zero dependency |
-| **Application** | Use cases (Commands/Queries), Handlers, Validators, Pipeline behaviors | Chỉ biết Domain |
-| **Infrastructure.Persistence** | EF Core DbContext, Repository implementations, Migrations | Biết Application + Domain |
-| **Infrastructure.Caching** | Redis client (shell) | Biết Application + Domain |
-| **Api** | Controllers, Middleware, Mapster mapping, DI wiring | Biết tất cả layers bên dưới + Contracts |
-| **Contracts** | Request/Response DTOs | Không biết gì — plain POCOs |
+| **Domain** | Entities, Value Objects, Domain Errors, Repository interfaces | Nothing — zero dependency |
+| **Application** | Use cases (Commands/Queries), Handlers, Validators, Pipeline behaviors | Domain only |
+| **Infrastructure.Persistence** | EF Core DbContext, Repository implementations, Migrations | Application + Domain |
+| **Infrastructure.Caching** | Redis client (shell) | Application + Domain |
+| **Api** | Controllers, Middleware, Mapster mapping, DI wiring | All layers below + Contracts |
+| **Contracts** | Request/Response DTOs | Nothing — plain POCOs |
 
-**Bằng chứng trong code:**
-- `Author.cs` trong Domain không có `[Table]`, `[Column]` — cấu hình EF nằm hết trong `AuthorConfiguration.cs` ở Persistence
-- `IAuthorRepository` được định nghĩa ở Domain, implement ở Persistence — Domain không cần reference EF Core
-- `IUnitOfWork` interface ở Application, implementation (`UnitOfWork`) ở Persistence
+**Evidence in code:**
+- `Author.cs` in Domain has no `[Table]` or `[Column]` — EF configuration lives entirely in `AuthorConfiguration.cs` (Persistence)
+- `IAuthorRepository` is defined in Domain, implemented in Persistence — Domain never references EF Core
+- `IUnitOfWork` interface lives in Application, its implementation (`UnitOfWork`) lives in Persistence
 
 ---
 
 ### 🧩 Domain-Driven Design (DDD)
 
-| Concept | Implementation | Ý nghĩa |
+| Concept | Implementation | Purpose |
 |---|---|---|
-| **Entity** | `Entity<TId>` — base class chứa `Id` và domain event collection | Mọi entity đều có identity phân biệt qua Id |
-| **Aggregate Root** | `AggregateRoot<TId>` — kế thừa `Entity<TId>`, là marker class | Chỉ Aggregate Root mới được repository fetch/save. Đảm bảo consistency boundary |
-| **Value Object** | `AuthorId(Guid Value)` — `record` type | Strongly-typed Id: `AuthorId` ≠ `BookId` ≠ `Guid`. Compiler bắt lỗi ngay từ lúc gõ |
-| **Domain Errors** | `AuthorErrors.NotFound` — static class chứa `Error` objects | Lỗi mang ý nghĩa business, không phải exception kỹ thuật |
-| **Repository Interface** | `IAuthorRepository` trong Domain | Interface ở Domain, implementation ở Infrastructure — đảo ngược dependency |
+| **Entity** | `Entity<TId>` — base class with `Id` and domain event collection | Every entity has an identity distinguished by its Id |
+| **Aggregate Root** | `AggregateRoot<TId>` — extends `Entity<TId>`, marker class | Only Aggregate Roots are fetched/saved via repositories. Enforces consistency boundary |
+| **Value Object** | `AuthorId(Guid Value)` — `record` type | Strongly-typed Id: `AuthorId` ≠ `BookId` ≠ plain `Guid`. Compiler catches mistakes at compile time |
+| **Domain Errors** | `AuthorErrors.NotFound` — static class holding `Error` objects | Errors carry business meaning, not technical exceptions |
+| **Repository Interface** | `IAuthorRepository` in Domain | Interface in Domain, implementation in Infrastructure — dependency inversion |
 
-> **Điểm đáng chú ý:** `Author` dùng **factory method** `Author.Create(...)` thay vì `new Author(...)` constructor public. Constructor private `Author() { }` chỉ dành cho EF Core. Đây là pattern phổ biến trong DDD để kiểm soát cách entity được tạo.
+> **Notable:** `Author` uses a **factory method** `Author.Create(...)` instead of a public `new Author(...)` constructor. The private `Author() { }` constructor exists solely for EF Core. This is a common DDD pattern to control how entities are created.
 
 ---
 
-### ⚡ CQRS với MediatR
+### ⚡ CQRS with MediatR
 
-Mỗi use case là một Command (ghi) hoặc Query (đọc) riêng biệt, mỗi cái có Handler riêng. Không có service class "phình to" làm đủ thứ.
+Each use case is a separate Command (write) or Query (read), each with its own Handler. No bloated service classes.
 
-**Phân loại bằng marker interfaces:**
-- `ICommand<TResponse> : IRequest<ErrorOr<TResponse>>` — command (ghi, cần SaveChanges)
-- `IQuery<TResponse> : IRequest<ErrorOr<TResponse>>` — query (đọc, không cần SaveChanges)
+**Classification via marker interfaces:**
+- `ICommand<TResponse> : IRequest<ErrorOr<TResponse>>` — command (write, needs SaveChanges)
+- `IQuery<TResponse> : IRequest<ErrorOr<TResponse>>` — query (read, no SaveChanges)
 
-**Pipeline behaviors xử lý xuyên suốt mọi request:**
+**Pipeline behaviors applied to every request:**
 
-| Behavior | Phạm vi | Việc làm |
+| Behavior | Scope | Responsibility |
 |---|---|---|
-| **ValidationBehavior** | Mọi request | Chạy FluentValidation trước handler. Lỗi → 422, không chạy handler |
-| **UnitOfWorkBehavior** | Chỉ `ICommand<T>` | Tự động `SaveChangesAsync` nếu handler thành công. Lỗi → không commit |
+| **ValidationBehavior** | All requests | Runs FluentValidation before the handler. On failure → returns 422, handler never executes |
+| **UnitOfWorkBehavior** | Only `ICommand<T>` | Auto-calls `SaveChangesAsync` after successful handler. On error → nothing is committed |
 
-> **Ý nghĩa:** Controller không bao giờ gọi `SaveChanges`. Handler không bao giờ gọi `SaveChanges`. Việc commit DB hoàn toàn do pipeline behavior quản lý — đảm bảo tính atomic của mỗi command.
+> **Why this matters:** Controllers never call `SaveChanges`. Handlers never call `SaveChanges`. Database commits are managed entirely by pipeline behaviors — guaranteeing atomicity for every command.
 
 ---
 
 ### 🎯 ErrorOr — Result Pattern
 
-Thay vì throw exception cho các lỗi nghiệp vụ (not found, conflict, validation), handler return `ErrorOr<T>`. Base `ApiController` dùng `result.Match(success → ..., errors → Problem(errors))` để map Error type sang HTTP status:
+Instead of throwing exceptions for business logic failures (not found, conflict, validation), handlers return `ErrorOr<T>`. The base `ApiController` uses `result.Match(success → ..., errors → Problem(errors))` to map Error types to HTTP status codes:
 
 | Domain Error | HTTP Status |
 |---|---|
 | `ErrorType.NotFound` | 404 |
 | `ErrorType.Conflict` | 409 |
 | `ErrorType.Validation` | 422 |
-| khác | 500 |
+| other | 500 |
 
-Exception chỉ dành cho lỗi thực sự bất ngờ (null reference, DB timeout, ...). Những exception này được `ExceptionHandlingMiddleware` bắt, log qua Serilog, và trả về JSON 500.
+Exceptions are reserved for truly unexpected failures (null reference, DB timeout, ...). These are caught by `ExceptionHandlingMiddleware`, logged via Serilog, and returned as JSON 500.
 
 ---
 
-### 🔧 Chi tiết kỹ thuật
+### 🔧 Technical Details
 
 **FluentValidation + Reflection-based Error Construction**  
-`ValidationBehavior` dùng `IValidator<TRequest>` (nullable — nếu không có validator thì bỏ qua). Khi validation fail, errors được gom thành `List<Error>` và dùng reflection để gọi `ErrorOr<T>.From(List<Error>)` — tránh unsafe `(dynamic)` cast.
+`ValidationBehavior` uses `IValidator<TRequest>` (nullable — skips if no validator is registered). On validation failure, errors are collected into `List<Error>` and converted to the correct `ErrorOr<T>` type via reflection (`ErrorOr<T>.From(List<Error>)`) — avoiding an unsafe `(dynamic)` cast.
 
 **Mapster**  
-Scan toàn bộ Api assembly để tìm các class implement `IRegister` (vd: `AuthorMappingConfig`). Controller chỉ cần gọi `_mapper.Map<Dest>(src)` — mapping tập trung, không có `new Response { ... }` rải rác.
+Scans the Api assembly for classes implementing `IRegister` (e.g. `AuthorMappingConfig`). Controllers call `_mapper.Map<Dest>(src)` — centralized mapping, no scattered `new Response { ... }` assignments.
 
 **EF Core Fluent API**  
-`AuthorConfiguration.cs` chứa toàn bộ cấu hình: table name, column name, type conversion (`AuthorId → Guid`). Domain entity `Author.cs` không hề có data annotation — sạch sẽ, không phụ thuộc ORM.
+`AuthorConfiguration.cs` contains all configuration: table name, column names, type conversion (`AuthorId → Guid`). The Domain entity `Author.cs` has zero data annotations — clean and ORM-agnostic.
 
 ---
 
@@ -118,7 +118,7 @@ Scan toàn bộ Api assembly để tìm các class implement `IRegister` (vd: `A
 | **Api** | `Swashbuckle.AspNetCore` | 10.x | Swagger |
 | | `Serilog.AspNetCore` | 9.x | Request logging |
 | | `Serilog.Sinks.Console` | 6.x | Console output |
-| | `Microsoft.AspNetCore.Authentication.JwtBearer` | 8.x | JWT (chưa wire) |
+| | `Microsoft.AspNetCore.Authentication.JwtBearer` | 8.x | JWT (not yet wired) |
 | | `Microsoft.EntityFrameworkCore.Design` | 9.x | EF CLI design-time |
 
 ---
@@ -126,25 +126,25 @@ Scan toàn bộ Api assembly để tìm các class implement `IRegister` (vd: `A
 ## 🛠 Makefile
 
 ### Scaffolding (`make init`)
-Chạy lần đầu để tạo toàn bộ solution từ zero:
+Run once to create the entire solution from scratch:
 ```
 new-sln → new-projects → sln-add → ref → add-packages → restore
 ```
-Mỗi bước đều có thể chạy riêng lẻ nếu cần custom. `ref` tự động thiết lập project references theo đúng graph Clean Architecture.
+Each step can run individually. `ref` automatically sets up project references following the Clean Architecture dependency graph.
 
 ### Package management (`make add` / `make remove`)
 ```bash
 make add pkg=Newtonsoft.Json to=Application ver=13.0.3
 make remove pkg=Newtonsoft.Json to=Application
 ```
-Tự động resolve đường dẫn `.csproj` theo tên layer. Hỗ trợ version pinning.
+Auto-resolves `.csproj` paths by layer name. Supports version pinning.
 
 ### Database migrations (`make migration` / `make db-update`)
-Tạo migration, update database, rollback, drop — target đúng project Infrastructure.Persistence, startup-project trỏ về Api.
+Create migrations, update the database, rollback, drop — all target the correct Infrastructure.Persistence project with `--startup-project` pointing to Api.
 
 ### Run / Watch
 ```bash
-make run     # dotnet run với https profile
+make run     # dotnet run with https profile
 make watch   # hot reload
 ```
 
@@ -167,23 +167,9 @@ dotnet ef database update \
 dotnet run --project api/BookStore.Api
 # → Swagger: https://localhost:44399/swagger
 
-# Hoặc dùng Makefile:
+# Or using Makefile:
 make run
 ```
-
----
-
-## 📋 API Status
-
-| Method | Route | Status |
-|---|---|---|
-| `POST` | `/api/authors` | ✅ Implemented |
-| `GET` | `/api/authors` | ⏳ Planned |
-| `GET` | `/api/authors/{id}` | ⏳ Planned |
-| `PATCH` | `/api/authors/{id}` | ⏳ Planned |
-| `DELETE` | `/api/authors/{id}` | ⏳ Planned |
-
-Hiện tại chỉ có **Author** aggregate. **Book** entity và các endpoint liên quan đang trong kế hoạch.
 
 ---
 
@@ -191,11 +177,11 @@ Hiện tại chỉ có **Author** aggregate. **Book** entity và các endpoint l
 
 | Decision | Rationale |
 |---|---|
-| **ICommand / IQuery markers** | Cho phép pipeline behavior phân biệt command (cần SaveChanges) với query (read-only) ngay tại generic constraint — không cần runtime check |
-| **UnitOfWorkBehavior qua MediatR pipeline** | Controller và handler không bao giờ gọi `SaveChanges` trực tiếp. Transaction boundary là toàn bộ command — một commit hoặc không gì cả |
-| **IUnitOfWork ở Application layer** | Application định nghĩa contract, Persistence implement. Đúng Dependency Inversion Principle |
-| **Separate Infrastructure projects** | `Persistence` và `Caching` độc lập, không chung một project "rác". Swap cái nào cũng không ảnh hưởng cái kia |
-| **Fluent API over data annotations** | Domain entities thuần POCO — không biết EF Core là gì |
-| **AuthorId là value object** | Compile-time type safety: `AuthorId` ≠ `BookId` ≠ plain `Guid` |
-| **Reflection-based error construction** | An toàn hơn `(dynamic)` cast — gọi đúng `ErrorOr<T>.From()` với generic type chính xác |
-| **Makefile với scaffolding** | Tự động hoá tạo project structure đúng Clean Architecture ngay từ đầu — không lo sai dependency direction |
+| **ICommand / IQuery markers** | Lets pipeline behaviors distinguish commands (need SaveChanges) from queries (read-only) at the generic constraint level — no fragile runtime checks |
+| **UnitOfWorkBehavior via MediatR pipeline** | Controllers and handlers never call `SaveChanges` directly. Transaction boundary is the entire command — one commit or nothing |
+| **IUnitOfWork in Application layer** | Application defines the contract, Persistence provides the implementation. Follows Dependency Inversion Principle |
+| **Separate Infrastructure projects** | `Persistence` and `Caching` evolve independently. No monolithic `Infrastructure` project with unrelated dependencies |
+| **Fluent API over data annotations** | Domain entities stay POCO — zero awareness of EF, column names, or DB constraints |
+| **AuthorId as value object** | Compile-time type safety: `AuthorId` ≠ `BookId` ≠ plain `Guid` |
+| **Reflection-based error construction** | Safer than `(dynamic)` cast — calls `ErrorOr<T>.From()` with the correct generic type |
+| **Makefile with scaffolding** | Automates project structure creation following Clean Architecture from the start — no risk of incorrect dependency direction |
