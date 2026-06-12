@@ -20,10 +20,15 @@ public sealed class UpdateAuthorCommandHandler(
       return AuthorErrors.NotFound;
     }
 
+    if (!Enum.TryParse<Gender>(cmd.Gender, ignoreCase: true, out var gender) || gender == Gender.Unknown)
+    {
+      return AuthorErrors.InvalidGender;
+    }
+
     author.Update(
       cmd.FirstName,
       cmd.LastName,
-      cmd.Gender,
+      gender,
       cmd.DateOfBirth,
       cmd.Biography,
       cmd.Nationality,
@@ -32,7 +37,7 @@ public sealed class UpdateAuthorCommandHandler(
       cmd.PortraitImageUrl,
       cmd.OfficialWebsite);
 
-    _authorRepository.Update(author);
+    _authorRepository.Update(author); // có thể bỏ???
     return author;
   }
 }

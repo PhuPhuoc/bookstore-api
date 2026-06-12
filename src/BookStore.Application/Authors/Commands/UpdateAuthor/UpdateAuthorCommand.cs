@@ -7,7 +7,7 @@ public record UpdateAuthorCommand(
     AuthorId Id,
     string FirstName,
     string LastName,
-    Gender Gender,
+    string Gender,
     DateOnly DateOfBirth,
     string? Biography,
     string? Nationality,
