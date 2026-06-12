@@ -11,12 +11,11 @@ public static class DependencyInjection
   {
     services.AddMediatR(cfg =>
       {
-        // 1.register Handlers from Assembly
-        // cfg.RegisterServicesFromAssembly(typeof(DependencyInjection).Assembly);
+        // register Handlers from Assembly
         cfg.RegisterServicesFromAssembly(Assembly.GetExecutingAssembly());
-        // 2. register all open behaviors
+        // register all open behaviors
         cfg.AddOpenBehavior(typeof(ValidationBehavior<,>));
-        // unit of work
+        // register unit of work
         cfg.AddOpenBehavior(typeof(UnitOfWorkBehavior<,>));
       }
     );

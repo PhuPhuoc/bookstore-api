@@ -1,3 +1,6 @@
 namespace BookStore.Domain.Authors;
 
-public record AuthorId(Guid Value);
+public readonly record struct AuthorId(Guid Value)
+{
+  public static AuthorId New() => new(Guid.NewGuid());
+}

@@ -10,29 +10,25 @@ public class AuthorRepository(
 {
   private readonly AppDbContext _context = context;
 
-  public async Task AddAsync(Author author, CancellationToken ct)
+  public void Add(Author author)
   {
-    await _context.Authors.AddAsync(author, ct);
+    _context.Authors.Add(author);
   }
 
-  public async Task DeleteAsync(Author author, CancellationToken ct)
+  public void Update(Author author)
+  {
+    _context.Authors.Update(author);
+  }
+
+  public void Delete(Author author)
   {
     _context.Authors.Remove(author);
   }
 
-  public async Task<Author?> GetByIdAsync(AuthorId id, CancellationToken ct)
+  public Task<Author?> GetByIdAsync(AuthorId id, CancellationToken ct)
   {
-    return await _context.Authors
-        .FirstOrDefaultAsync(a => a.Id == id, ct);
-  }
-
-  public async Task<List<Author>> ListAsync(CancellationToken ct)
-  {
-    return await _context.Authors.ToListAsync(ct);
-  }
-
-  public async Task UpdateAsync(Author author, CancellationToken ct)
-  {
-    _context.Authors.Update(author);
+    return _context.Authors
+      .Include(a => a.Aliases)
+      .FirstOrDefaultAsync(a => a.Id == id, ct);
   }
 }

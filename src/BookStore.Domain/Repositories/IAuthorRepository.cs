@@ -4,9 +4,11 @@ namespace BookStore.Domain.Repositories;
 
 public interface IAuthorRepository
 {
+  void Add(Author author);
+
+  void Update(Author author);
+
+  void Delete(Author author);
+
   Task<Author?> GetByIdAsync(AuthorId id, CancellationToken ct = default);
-  Task<List<Author>> ListAsync(CancellationToken ct = default);
-  Task AddAsync(Author author, CancellationToken ct = default);
-  Task UpdateAsync(Author author, CancellationToken ct = default);
-  Task DeleteAsync(Author author, CancellationToken ct = default);
 }

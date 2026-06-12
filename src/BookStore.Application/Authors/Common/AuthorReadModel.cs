@@ -1,6 +1,6 @@
-namespace BookStore.Contracts.Authors;
+namespace BookStore.Application.Authors.Common;
 
-public sealed record AuthorResponse(
+public sealed record AuthorReadModel(
     Guid Id,
     string FirstName,
     string LastName,
@@ -13,4 +13,4 @@ public sealed record AuthorResponse(
     string? PortraitImageUrl,
     string? OfficialWebsite,
     bool IsActive,
-    IReadOnlyCollection<AuthorAliasResponse> Aliases);
+    IReadOnlyList<AuthorAliasReadModel> Aliases);
