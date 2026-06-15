@@ -1,4 +1,5 @@
 using BookStore.Domain.Common;
+using ErrorOr;
 
 namespace BookStore.Domain.Authors;
 
@@ -12,18 +13,24 @@ public sealed class AuthorAlias : Entity<AuthorAliasId>
     // Required by EF Core.
   }
 
-  private AuthorAlias(AuthorAliasId id, string name)
+  private AuthorAlias(AuthorAliasId id, string name, string normalizedName)
   {
     Id = id;
     Name = name.Trim();
-    NormalizedName = Normalize(name);
+    NormalizedName = Normalize(normalizedName);
   }
 
-  public static AuthorAlias Create(string name)
+  public static ErrorOr<AuthorAlias> Create(string name)
   {
+    if (string.IsNullOrWhiteSpace(name))
+    {
+      return AuthorErrors.InvalidAliasName;
+    }
+
     return new AuthorAlias(
         AuthorAliasId.New(),
-        name);
+        name.Trim(),
+        name.Trim().ToUpperInvariant());
   }
 
   public void Rename(string name)

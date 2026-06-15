@@ -13,5 +13,6 @@ public record CreateAuthorCommand(
     string? BirthPlace,
     DateOnly? DateOfDeath,
     string? PortraitImageUrl,
-    string? OfficialWebsite
+    string? OfficialWebsite,
+    IReadOnlyCollection<string>? Aliases
     ) : ICommand<Author>;

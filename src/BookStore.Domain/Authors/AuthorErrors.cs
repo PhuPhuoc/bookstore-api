@@ -16,6 +16,10 @@ public static class AuthorErrors
           code: "Author.InvalidGender",
           description: "Gender must be one of: Male, Female, Other.");
 
+  public static readonly Error InvalidAliasName = Error.Validation(
+          code: "Author.InvalidAliasName",
+          description: "Author need at least one character.");
+
   public static readonly Error DuplicateAlias = Error.Conflict(
       code: "Author.DuplicateAlias",
       description: "Author already has this alias.");

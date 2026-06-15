@@ -13,9 +13,11 @@ public sealed class CreateAuthorCommandHandler(
 
   public async Task<ErrorOr<Author>> Handle(CreateAuthorCommand cmd, CancellationToken ct)
   {
-    var gender = Enum.Parse<Gender>(
-        cmd.Gender,
-        ignoreCase: true);
+    if (!Enum.TryParse<Gender>(cmd.Gender, ignoreCase: true, out var gender)
+           || gender == Gender.Unknown)
+    {
+      return AuthorErrors.InvalidGender;
+    }
 
     var author = Author.Create(
               cmd.FirstName,
@@ -27,7 +29,8 @@ public sealed class CreateAuthorCommandHandler(
               cmd.BirthPlace,
               cmd.DateOfDeath,
               cmd.PortraitImageUrl,
-              cmd.OfficialWebsite);
+              cmd.OfficialWebsite,
+              cmd.Aliases);
 
     if (author.IsError)
     {

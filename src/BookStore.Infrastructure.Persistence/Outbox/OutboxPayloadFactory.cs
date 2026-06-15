@@ -13,7 +13,18 @@ public static class OutboxPayloadFactory
       AuthorCreatedDomainEvent authorCreated => new AuthorCreatedPayload(
           authorCreated.AuthorId.Value.ToString(),
           authorCreated.FirstName,
-          authorCreated.LastName),
+          authorCreated.LastName,
+          authorCreated.Gender.ToString(),
+          authorCreated.DateOfBirth,
+          authorCreated.Biography,
+          authorCreated.Nationality,
+          authorCreated.BirthPlace,
+          authorCreated.DateOfDeath,
+          authorCreated.PortraitImageUrl,
+          authorCreated.OfficialWebsite,
+          authorCreated.Aliases
+          ),
+
 
       _ => throw new InvalidOperationException(
           $"Unsupported domain event type: {domainEvent.GetType().Name}")

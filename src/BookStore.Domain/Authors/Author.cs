@@ -43,7 +43,8 @@ public sealed class Author : AggregateRoot<AuthorId>
       string? birthPlace = null,
       DateOnly? dateOfDeath = null,
       string? portraitImageUrl = null,
-      string? officialWebsite = null)
+      string? officialWebsite = null,
+      IReadOnlyCollection<string>? aliases = null)
   {
     if (dateOfDeath is not null && dateOfDeath < dateOfBirth)
     {
@@ -66,10 +67,33 @@ public sealed class Author : AggregateRoot<AuthorId>
         lastName,
         details);
 
+
+    if (aliases is not null)
+    {
+      foreach (var aliasName in aliases)
+      {
+        var addAliasResult = author.AddAlias(aliasName);
+
+        if (addAliasResult.IsError)
+        {
+          return addAliasResult.Errors;
+        }
+      }
+    }
+
     author.RaiseDomainEvent(new AuthorCreatedDomainEvent(
         author.Id,
         author.FirstName,
         author.LastName,
+        author.Details.Gender.ToString(),
+        author.Details.DateOfBirth,
+        author.Details.Biography,
+        author.Details.Nationality,
+        author.Details.BirthPlace,
+        author.Details.DateOfDeath,
+        author.Details.PortraitImageUrl,
+        author.Details.OfficialWebsite,
+        [.. author.Aliases.Select(a => a.NormalizedName)],
         DateTime.UtcNow));
 
     return author;
@@ -124,14 +148,14 @@ public sealed class Author : AggregateRoot<AuthorId>
     var alias = AuthorAlias.Create(name);
 
     var duplicated = _aliases.Any(x =>
-        x.NormalizedName == alias.NormalizedName);
+        x.NormalizedName == alias.Value.NormalizedName);
 
     if (duplicated)
     {
       return AuthorErrors.DuplicateAlias;
     }
 
-    _aliases.Add(alias);
+    _aliases.Add(alias.Value);
 
     return Result.Success;
   }

@@ -10,5 +10,6 @@ public record CreateAuthorRequest(
     string? BirthPlace,
     DateOnly? DateOfDeath,
     string? PortraitImageUrl,
-    string? OfficialWebsite
+    string? OfficialWebsite,
+    IReadOnlyCollection<string>? Aliases
     );
